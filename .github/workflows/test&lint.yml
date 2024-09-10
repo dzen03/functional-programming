@@ -1,0 +1,24 @@
+name: Tests + linters
+
+on: [push, workflow_dispatch]
+
+jobs:
+  mdlint:
+    runs-on: [self-hosted, linux]
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tj-actions/changed-files@v45.0.1
+        id: changed-files
+        with:
+          files: '**/*.md'
+          separator: ","
+      - uses: DavidAnson/markdownlint-cli2-action@v16
+        if: steps.changed-files.outputs.any_changed == 'true'
+        with:
+          globs: ${{ steps.changed-files.outputs.all_changed_files }}
+          separator: ","
