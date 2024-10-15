@@ -1,0 +1,29 @@
+name: Lab1 tests
+
+on:
+  push:
+    paths:
+      - 'Lab1/**'
+  workflow_dispatch:
+
+jobs:
+  dotnet-test:
+    runs-on: [self-hosted, linux]
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./Lab1
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: dotnet restore
+      - name: Run fantomas
+        run: dotnet fantomas **/*.fs --check
+      - name: Run fsharplint
+        run: DOTNET_ROLL_FORWARD=latestMajor dotnet fsharplint lint Lab1.sln
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+      - name: Test
+        run: dotnet test --no-restore --verbosity normal
