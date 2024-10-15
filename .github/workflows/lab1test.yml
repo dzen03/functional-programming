@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'Lab1/**'
+      - '.github/workflows/lab1test.yml'
   workflow_dispatch:
 
 jobs:
@@ -19,6 +20,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: dotnet restore
+      - name: Install tools
+        run: dotnet tool restore
       - name: Run fantomas
         run: dotnet fantomas **/*.fs --check
       - name: Run fsharplint
