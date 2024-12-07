@@ -1,5 +1,7 @@
 # Lab2
 
+Дзензелюк Илья, 335140
+
 ## Задание
 
 Bag(multiset) with Separate Chaining Hashmap
@@ -19,7 +21,7 @@ Bag(multiset) with Separate Chaining Hashmap
 }
 -->
 
-## Add
+### Add
 
 ```fsharp
 member this.Add(x: 'T) =
@@ -34,7 +36,7 @@ member this.Add(x: 'T) =
     Bag(buckets.Add(h, updatedBucket))
 ```
 
-## Remove
+### Remove
 
 ```fsharp
 member this.Remove(x: 'T) =
@@ -58,7 +60,7 @@ member this.Remove(x: 'T) =
     | None -> this
 ```
 
-## Filter
+### Filter
 
 ```fsharp
 member this.Filter(predicate: 'T -> bool) =
@@ -70,7 +72,7 @@ member this.Filter(predicate: 'T -> bool) =
     Bag(newBuckets)
 ```
 
-## Map
+### Map
 
 ```fsharp
 member this.Map<'U when 'U: equality>(mapping: 'T -> 'U) : Bag<'U> =
@@ -93,7 +95,7 @@ member this.Map<'U when 'U: equality>(mapping: 'T -> 'U) : Bag<'U> =
     Bag<'U>(newBuckets)
 ```
 
-## Fold
+### Fold
 
 ```fsharp
 member this.Fold(folder: 'State -> 'T -> int -> 'State, state: 'State) =
@@ -103,7 +105,7 @@ member this.Fold(folder: 'State -> 'T -> int -> 'State, state: 'State) =
     |> List.fold (fun acc (k, count) -> folder acc k count) state
 ```
 
-## + (monoid)
+### + (monoid)
 
 ```fsharp
 static member (+)(bag1: Bag<'T>, bag2: Bag<'T>) =
