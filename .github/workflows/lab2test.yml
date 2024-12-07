@@ -1,0 +1,32 @@
+name: Lab2 tests
+
+on:
+  push:
+    paths:
+      - 'Lab2/**'
+      - '.github/workflows/lab2test.yml'
+  workflow_dispatch:
+
+jobs:
+  dotnet-test:
+    runs-on: [self-hosted, linux]
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./Lab2
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: dotnet restore
+      - name: Install tools
+        run: dotnet tool restore
+      - name: Run fantomas
+        run: dotnet fantomas **/*.fs --check
+      - name: Run fsharplint
+        run: DOTNET_ROLL_FORWARD=latestMajor dotnet fsharplint lint Lab?.sln
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+      - name: Test
+        run: dotnet test --no-restore --verbosity normal

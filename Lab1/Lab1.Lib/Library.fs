@@ -18,40 +18,30 @@ module Task5CSharp =
 
 module Task26 =
     let findCycleLength d =
-        let mutable remainder = 1
-        let remainders = System.Collections.Generic.Dictionary<int, int>()
-        let mutable position = 0
-        let mutable cycleLength = 0
+        let rec loop (remainder: int) (position: int) (remainders: Map<int, int>) =
+            if remainder = 0 || remainders.ContainsKey remainder then
+                if remainder = 0 then
+                    0
+                else
+                    position - remainders.[remainder]
+            else
+                let remainders = remainders.Add(remainder, position)
+                loop ((remainder * 10) % d) (position + 1) remainders
 
-        while remainder <> 0 && not (remainders.ContainsKey remainder) do
-            remainders.[remainder] <- position
-            remainder <- (remainder * 10) % d
-            position <- position + 1
-
-        if remainder <> 0 then
-            cycleLength <- position - remainders.[remainder]
-
-        cycleLength
+        loop 1 0 Map.empty
 
     let findMaxCycleUnder limit =
-        let mutable maxCycle = 0
-        let mutable maxD = 0
-
-        for d in 2 .. limit - 1 do
-            let cycleLength = findCycleLength d
-
-            if cycleLength > maxCycle then
-                maxCycle <- cycleLength
-                maxD <- d
-
-        maxD
+        [ 2 .. limit - 1 ]
+        |> List.map (fun d -> (d, findCycleLength d))
+        |> List.maxBy snd
+        |> fst
 
 module Task26InfSeq =
     let findMaxCycleUnder limit =
-        let ds = Seq.initInfinite (fun i -> i + 2) |> Seq.take (limit - 2)
+        let ds = Seq.initInfinite (fun i -> i + 2)
         let cycleLengths = ds |> Seq.map (fun d -> (d, Task26.findCycleLength d))
 
-        cycleLengths |> Seq.maxBy snd |> fst
+        cycleLengths |> Seq.take (limit - 2) |> Seq.maxBy snd |> fst
 
 module Task26Modular =
     let generateSequence (limit: int) : seq<int> = seq { 2 .. limit - 1 }
