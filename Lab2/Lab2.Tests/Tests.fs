@@ -92,7 +92,6 @@ module HashMultisetTests =
   // Property tests
   [<Property>]
   let ``Monoid left identity`` (xs: int list) =
-    printfn "size: %u" xs.Length
     let cap = 16
     let initialMs = xs |> List.fold (fun ms x -> add x ms) (empty cap)
     let left = merge (empty cap) initialMs

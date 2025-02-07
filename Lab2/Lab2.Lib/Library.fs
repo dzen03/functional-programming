@@ -67,7 +67,6 @@ module HashMultiset =
     else
       ms
 
-
   let add (key: 'T) (ms: HashMultiset<'T>) : HashMultiset<'T> = ms |> doAdd key |> ensureCapacity
 
   let remove (key: 'T) (ms: HashMultiset<'T>) : HashMultiset<'T> =
