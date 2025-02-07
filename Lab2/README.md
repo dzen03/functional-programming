@@ -16,7 +16,7 @@ Bag(multiset) with Separate Chaining Hashmap
 {
   "line_length": {
     "ignore_code_blocks": true,
-    "line_length": 200
+    "line_length": 100
   }
 }
 -->
@@ -24,106 +24,110 @@ Bag(multiset) with Separate Chaining Hashmap
 ### Add
 
 ```fsharp
-member this.Add(x: 'T) =
-    let h = hash x
-    let bucket = Map.tryFind h buckets |> Option.defaultValue []
+let add (key: 'T) (ms: HashMultiset<'T>) : HashMultiset<'T> = ms |> doAdd key |> ensureCapacity
 
-    let updatedBucket =
-        match List.tryFind (fun (k, _) -> k = x) bucket with
-        | Some(k, count) -> (k, count + 1) :: (List.filter (fun (k', _) -> k' <> x) bucket)
-        | None -> (x, 1) :: bucket
+let private doAdd (key: 'T) (ms: HashMultiset<'T>) : HashMultiset<'T> =
+  let i = index ms.Capacity key
+  let oldBucket = ms.Buckets.[i]
 
-    Bag(buckets.Add(h, updatedBucket))
+  let updatedBucket, delta =
+    match tryFindCountInList key oldBucket with
+      | Some oldCount ->
+        let newBucket =
+          oldBucket |> List.map (fun (k, c) -> if k = key then (k, c + 1) else (k, c))
+
+        newBucket, 1
+      | None -> (key, 1) :: oldBucket, 1
+
+    let newBuckets = Array.copy ms.Buckets
+    newBuckets.[i] <- updatedBucket
+
+    { ms with
+        Buckets = newBuckets
+        Size = ms.Size + delta }
 ```
 
 ### Remove
 
 ```fsharp
-member this.Remove(x: 'T) =
-    let h = hash x
+  let remove (key: 'T) (ms: HashMultiset<'T>) : HashMultiset<'T> =
+    let i = index ms.Capacity key
+    let oldBucket = ms.Buckets.[i]
 
-    match Map.tryFind h buckets with
-    | Some bucket ->
-        let updatedBucket =
-            match List.tryFind (fun (k, _) -> k = x) bucket with
-            | Some(k, count) when count > 1 -> (k, count - 1) :: (List.filter (fun (k', _) -> k' <> x) bucket)
-            | Some _ -> List.filter (fun (k', _) -> k' <> x) bucket
-            | None -> bucket
+    match tryFindCountInList key oldBucket with
+    | Some oldCount when oldCount > 1 ->
+      let newBucket =
+        oldBucket |> List.map (fun (k, c) -> if k = key then (k, c - 1) else (k, c))
 
-        let updatedBuckets =
-            if List.isEmpty updatedBucket then
-                buckets.Remove h
-            else
-                buckets.Add(h, updatedBucket)
+      let newBuckets = Array.copy ms.Buckets
+      newBuckets.[i] <- newBucket
 
-        Bag(updatedBuckets)
-    | None -> this
+      { ms with
+          Buckets = newBuckets
+          Size = ms.Size - 1 }
+    | Some 1 ->
+      let newBucket = oldBucket |> List.filter (fun (k, _) -> k <> key)
+      let newBuckets = Array.copy ms.Buckets
+      newBuckets.[i] <- newBucket
+
+      { ms with
+          Buckets = newBuckets
+          Size = ms.Size - 1 }
+    | _ -> ms
 ```
 
 ### Filter
 
 ```fsharp
-member this.Filter(predicate: 'T -> bool) =
-    let newBuckets =
-        buckets
-        |> Map.map (fun _ bucket -> bucket |> List.filter (fun (k, _) -> predicate k))
-        |> Map.filter (fun _ bucket -> not (List.isEmpty bucket))
+  let filter (pred: 'T -> bool) (ms: HashMultiset<'T>) : HashMultiset<'T> =
+    let newMs = empty<'T> ms.Capacity
 
-    Bag(newBuckets)
+    let rec addNCopies k n acc =
+      if n <= 0 then acc else addNCopies k (n - 1) (doAdd k acc)
+
+    let filtered =
+      Array.fold
+        (fun acc chain ->
+          List.fold (fun a (k, cnt) -> if pred k then addNCopies k cnt a else a) acc chain)
+        newMs
+        ms.Buckets
+
+    ensureCapacity filtered
 ```
 
 ### Map
 
 ```fsharp
-member this.Map<'U when 'U: equality>(mapping: 'T -> 'U) : Bag<'U> =
-    let counts =
-        buckets
-        |> Seq.collect (fun kvp -> kvp.Value)
-        |> Seq.map (fun (k, count) -> (mapping k, count))
-        |> Seq.groupBy fst
-        |> Seq.map (fun (k, seq) -> (k, seq |> Seq.sumBy snd))
-        |> Seq.toList
+  let map (f: 'T -> 'U) (ms: HashMultiset<'T>) : HashMultiset<'U> =
+    let newMs = empty<'U> ms.Capacity
 
-    let newBuckets =
-        counts
-        |> Seq.groupBy (fun (k, _) -> k.GetHashCode())
-        |> Seq.map (fun (h, items) ->
-            let bucket = Seq.toList items
-            (h, bucket))
-        |> Map.ofSeq
+    let rec addNCopies k n acc =
+      if n <= 0 then acc else addNCopies k (n - 1) (doAdd k acc)
 
-    Bag<'U>(newBuckets)
+    let mapped =
+      Array.fold
+        (fun acc chain -> List.fold (fun a (k, cnt) -> addNCopies (f k) cnt a) acc chain)
+        newMs
+        ms.Buckets
+
+    ensureCapacity mapped
 ```
 
 ### Fold
 
 ```fsharp
-member this.Fold(folder: 'State -> 'T -> int -> 'State, state: 'State) =
-    buckets
-    |> Map.toList
-    |> List.collect snd
-    |> List.fold (fun acc (k, count) -> folder acc k count) state
-```
+  let private applyTimes (folder: 'State -> 'T -> 'State) (state: 'State) (x: 'T) (count: int) =
+    let rec loop st n =
+      if n <= 0 then st else loop (folder st x) (n - 1)
 
-### + (monoid)
+    loop state count
 
-```fsharp
-static member (+)(bag1: Bag<'T>, bag2: Bag<'T>) =
-    let mergeBuckets b1 b2 =
-        Map.fold
-            (fun acc h bucket ->
-                let existingBucket = Map.tryFind h acc |> Option.defaultValue []
+  let fold (folder: 'State -> 'T -> 'State) (state: 'State) (ms: HashMultiset<'T>) : 'State =
+    Array.fold
+      (fun acc chain -> List.fold (fun st (k, cnt) -> applyTimes folder st k cnt) acc chain)
+      state
+      ms.Buckets
 
-                let mergedBucket =
-                    (bucket @ existingBucket)
-                    |> List.groupBy fst
-                    |> List.map (fun (k, counts) -> (k, counts |> List.sumBy snd))
-
-                acc.Add(h, mergedBucket))
-            b1
-            b2
-
-    Bag(mergeBuckets bag1.Buckets bag2.Buckets)
 ```
 
 ## Выводы

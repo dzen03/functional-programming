@@ -1,102 +1,175 @@
 ﻿namespace Lab2.Lib
 
-module Bag =
-    type Bag<'T when 'T: equality> private (buckets: Map<int, list<'T * int>>) =
-        let hash x = x.GetHashCode()
+module HashMultiset =
 
-        member private _.Buckets = buckets
+  type HashMultiset<'T when 'T: comparison> =
+    { Buckets: ('T * int) list array
+      Capacity: int
+      Size: int }
 
-        static member Empty = Bag<'T>(Map.empty)
+  let empty<'T when 'T: comparison> capacity =
+    { Buckets = Array.init<('T * int) list> capacity (fun _ -> [])
+      Capacity = capacity
+      Size = 0 }
 
-        member this.Add(x: 'T) =
-            let h = hash x
-            let bucket = Map.tryFind h buckets |> Option.defaultValue []
+  // make index >=0
+  let private index (capacity: int) (x: 'T) = (hash x &&& 0x7FFFFFFF) % capacity
 
-            let updatedBucket =
-                match List.tryFind (fun (k, _) -> k = x) bucket with
-                | Some(k, count) -> (k, count + 1) :: (List.filter (fun (k', _) -> k' <> x) bucket)
-                | None -> (x, 1) :: bucket
+  let private tryFindCountInList (key: 'T) (lst: ('T * int) list) =
+    lst |> List.tryFind (fun (k, _) -> k = key) |> Option.map snd
 
-            Bag(buckets.Add(h, updatedBucket))
+  // add without check of capacity
+  let private doAdd (key: 'T) (ms: HashMultiset<'T>) : HashMultiset<'T> =
+    let i = index ms.Capacity key
+    let oldBucket = ms.Buckets.[i]
 
-        member this.Remove(x: 'T) =
-            let h = hash x
+    let updatedBucket, delta =
+      match tryFindCountInList key oldBucket with
+      | Some oldCount ->
+        let newBucket =
+          oldBucket |> List.map (fun (k, c) -> if k = key then (k, c + 1) else (k, c))
 
-            match Map.tryFind h buckets with
-            | Some bucket ->
-                let updatedBucket =
-                    match List.tryFind (fun (k, _) -> k = x) bucket with
-                    | Some(k, count) when count > 1 -> (k, count - 1) :: (List.filter (fun (k', _) -> k' <> x) bucket)
-                    | Some _ -> List.filter (fun (k', _) -> k' <> x) bucket
-                    | None -> bucket
+        newBucket, 1
+      | None -> (key, 1) :: oldBucket, 1
 
-                let updatedBuckets =
-                    if List.isEmpty updatedBucket then
-                        buckets.Remove h
-                    else
-                        buckets.Add(h, updatedBucket)
+    let newBuckets = Array.copy ms.Buckets
+    newBuckets.[i] <- updatedBucket
 
-                Bag(updatedBuckets)
-            | None -> this
+    { ms with
+        Buckets = newBuckets
+        Size = ms.Size + delta }
 
-        member this.Filter(predicate: 'T -> bool) =
-            let newBuckets =
-                buckets
-                |> Map.map (fun _ bucket -> bucket |> List.filter (fun (k, _) -> predicate k))
-                |> Map.filter (fun _ bucket -> not (List.isEmpty bucket))
+  let private applyTimes (folder: 'State -> 'T -> 'State) (state: 'State) (x: 'T) (count: int) =
+    let rec loop st n =
+      if n <= 0 then st else loop (folder st x) (n - 1)
 
-            Bag(newBuckets)
+    loop state count
 
-        member this.Map<'U when 'U: equality>(mapping: 'T -> 'U) : Bag<'U> =
-            let counts =
-                buckets
-                |> Seq.collect (fun kvp -> kvp.Value)
-                |> Seq.map (fun (k, count) -> (mapping k, count))
-                |> Seq.groupBy fst
-                |> Seq.map (fun (k, seq) -> (k, seq |> Seq.sumBy snd))
-                |> Seq.toList
+  let fold (folder: 'State -> 'T -> 'State) (state: 'State) (ms: HashMultiset<'T>) : 'State =
+    Array.fold
+      (fun acc chain -> List.fold (fun st (k, cnt) -> applyTimes folder st k cnt) acc chain)
+      state
+      ms.Buckets
 
-            let newBuckets =
-                counts
-                |> Seq.groupBy (fun (k, _) -> k.GetHashCode())
-                |> Seq.map (fun (h, items) ->
-                    let bucket = Seq.toList items
-                    (h, bucket))
-                |> Map.ofSeq
+  let private rehash (newCapacity: int) (ms: HashMultiset<'T>) : HashMultiset<'T> =
+    let newMs = empty<'T> newCapacity
 
-            Bag<'U>(newBuckets)
+    let rec addNCopies k n acc =
+      if n <= 0 then acc else addNCopies k (n - 1) (doAdd k acc)
 
-        member this.Fold(folder: 'State -> 'T -> int -> 'State, state: 'State) =
-            buckets
-            |> Map.toList
-            |> List.collect snd
-            |> List.fold (fun acc (k, count) -> folder acc k count) state
+    fold (fun acc x -> doAdd x acc) newMs ms
 
-        static member (+)(bag1: Bag<'T>, bag2: Bag<'T>) =
-            let mergeBuckets b1 b2 =
-                Map.fold
-                    (fun acc h bucket ->
-                        let existingBucket = Map.tryFind h acc |> Option.defaultValue []
+  let private ensureCapacity (ms: HashMultiset<'T>) : HashMultiset<'T> =
+    let loadFactor = float ms.Size / float ms.Capacity
 
-                        let mergedBucket =
-                            (bucket @ existingBucket)
-                            |> List.groupBy fst
-                            |> List.map (fun (k, counts) -> (k, counts |> List.sumBy snd))
+    if loadFactor > 0.75 then
+      rehash (ms.Capacity * 2) ms
+    else
+      ms
 
-                        acc.Add(h, mergedBucket))
-                    b1
-                    b2
 
-            Bag(mergeBuckets bag1.Buckets bag2.Buckets)
+  let add (key: 'T) (ms: HashMultiset<'T>) : HashMultiset<'T> = ms |> doAdd key |> ensureCapacity
 
-        override this.Equals(obj) =
-            match obj with
-            | :? Bag<'T> as other -> this.Buckets = other.Buckets
-            | _ -> false
+  let remove (key: 'T) (ms: HashMultiset<'T>) : HashMultiset<'T> =
+    let i = index ms.Capacity key
+    let oldBucket = ms.Buckets.[i]
 
-        override this.GetHashCode() = buckets.GetHashCode()
+    match tryFindCountInList key oldBucket with
+    | Some oldCount when oldCount > 1 ->
+      let newBucket =
+        oldBucket |> List.map (fun (k, c) -> if k = key then (k, c - 1) else (k, c))
 
-        member this.ToList() : 'T list =
-            buckets
-            |> Map.toList
-            |> List.collect (fun (_, bucket) -> bucket |> List.collect (fun (k, count) -> List.init count (fun _ -> k)))
+      let newBuckets = Array.copy ms.Buckets
+      newBuckets.[i] <- newBucket
+
+      { ms with
+          Buckets = newBuckets
+          Size = ms.Size - 1 }
+    | Some 1 ->
+      let newBucket = oldBucket |> List.filter (fun (k, _) -> k <> key)
+      let newBuckets = Array.copy ms.Buckets
+      newBuckets.[i] <- newBucket
+
+      { ms with
+          Buckets = newBuckets
+          Size = ms.Size - 1 }
+    | _ -> ms
+
+  let countOf (key: 'T) (ms: HashMultiset<'T>) =
+    let i = index ms.Capacity key
+
+    match tryFindCountInList key ms.Buckets.[i] with
+    | Some c -> c
+    | None -> 0
+
+  let contains (key: 'T) (ms: HashMultiset<'T>) = countOf key ms > 0
+
+  let merge (ms1: HashMultiset<'T>) (ms2: HashMultiset<'T>) : HashMultiset<'T> =
+    let rec addNCopies k n acc =
+      if n <= 0 then acc else addNCopies k (n - 1) (doAdd k acc)
+
+    let merged =
+      Array.fold
+        (fun acc chain -> List.fold (fun a (k, cnt) -> addNCopies k cnt a) acc chain)
+        ms1
+        ms2.Buckets
+
+    ensureCapacity merged
+
+  let filter (pred: 'T -> bool) (ms: HashMultiset<'T>) : HashMultiset<'T> =
+    let newMs = empty<'T> ms.Capacity
+
+    let rec addNCopies k n acc =
+      if n <= 0 then acc else addNCopies k (n - 1) (doAdd k acc)
+
+    let filtered =
+      Array.fold
+        (fun acc chain ->
+          List.fold (fun a (k, cnt) -> if pred k then addNCopies k cnt a else a) acc chain)
+        newMs
+        ms.Buckets
+
+    ensureCapacity filtered
+
+  let map (f: 'T -> 'U) (ms: HashMultiset<'T>) : HashMultiset<'U> =
+    let newMs = empty<'U> ms.Capacity
+
+    let rec addNCopies k n acc =
+      if n <= 0 then acc else addNCopies k (n - 1) (doAdd k acc)
+
+    let mapped =
+      Array.fold
+        (fun acc chain -> List.fold (fun a (k, cnt) -> addNCopies (f k) cnt a) acc chain)
+        newMs
+        ms.Buckets
+
+    ensureCapacity mapped
+
+
+  let foldBack (folder: 'T -> 'State -> 'State) (ms: HashMultiset<'T>) (state: 'State) : 'State =
+    let bucketsReversed = Array.rev ms.Buckets
+
+    Array.fold
+      (fun acc chain ->
+        let chainRev = List.rev chain
+
+        List.fold (fun st (k, cnt) -> applyTimes (fun s x -> folder x s) st k cnt) acc chainRev)
+      state
+      bucketsReversed
+
+
+  let toList (ms: HashMultiset<'T>) : 'T list =
+    fold (fun acc x -> x :: acc) [] ms |> List.rev
+
+  let length (ms: HashMultiset<'T>) = ms.Size
+
+  let isEmpty (ms: HashMultiset<'T>) = (ms.Size = 0)
+
+  let equals (ms1: HashMultiset<'T>) (ms2: HashMultiset<'T>) =
+    if ms1.Size <> ms2.Size then
+      false
+    else
+      ms1.Buckets
+      |> Array.forall (fun chain -> chain |> List.forall (fun (k, cnt) -> countOf k ms2 = cnt))
+
+  let (=?) (ms1: HashMultiset<'T>) (ms2: HashMultiset<'T>) = equals ms1 ms2
