@@ -31,8 +31,8 @@ jobs:
       - name: Test
         run: dotnet test --no-restore --verbosity normal
       - name: Run Linear
-        run: cat data/linear.csv | dotnet run --no-restore --linear --step 0.7
+        run: cat data/linear.csv | dotnet run --linear --step 0.7
       - name: Run Newton
-        run: cat data/newton.csv | dotnet run --no-restore --newton -n 4 --step 0.5
+        run: cat data/newton.csv | dotnet run --newton -n 4 --step 0.5
       - name: Run Both
-        run: cat data/newton.csv | dotnet run --no-restore --newton -n 4 --linear --step 0.5
+        run: cat data/newton.csv | dotnet run --newton -n 4 --linear --step 0.5
