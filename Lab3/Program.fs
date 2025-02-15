@@ -38,6 +38,57 @@ let parseArgs (args: string[]) : Options =
 
   parseRec 0 defaults
 
+let printPoint (direction: string) (algo: string) (point: Point) =
+  printfn "%s%s %g %g" direction algo point.X point.Y
+
+let printLinear = printPoint "> " "linear"
+let printNewton = printPoint "> " "newton"
+
+let processLinear
+  (opts: Options)
+  (point: Point)
+  (prevPoint: Point option)
+  (prevLinearOut: Point option)
+  : (Point option) =
+  if opts.UseLinear then
+    let res =
+      match prevPoint with
+      | Some prevPt ->
+        let res = linearInterpolationSeq opts.Step ([ prevPt ] @ [ point ]) prevLinearOut
+
+        res
+        |> Seq.filter (fun pt -> pt.X > prevPt.X)
+        |> Seq.iter (fun pt -> printLinear pt)
+
+        (Some(res |> Seq.last))
+      | None ->
+        printLinear point
+        (Some point)
+
+    res
+  else
+    None
+
+let processNewton
+  (opts: Options)
+  (window: Point list)
+  (prevNewtonOut: Point option)
+  : (Point option) =
+  if List.length window = opts.NewtonN && opts.UseNewton then
+    let res = newtonInterpolationSeq opts.Step opts.NewtonN window
+
+    match prevNewtonOut with
+    | Some prevPt ->
+      res
+      |> Seq.filter (fun p -> p.X > prevPt.X)
+      |> Seq.iter (fun pt -> printNewton pt)
+    | None -> res |> Seq.iter (fun pt -> printNewton pt)
+
+    (Some(res |> Seq.last))
+  else
+    prevNewtonOut
+
+
 [<EntryPoint>]
 let main argv =
   let opts = parseArgs argv
@@ -46,28 +97,36 @@ let main argv =
     printfn "Usage: Lib3 [--linear] [--newton [-n N]] [--step S]"
     1
   else
-    let inputLines =
-      Seq.initInfinite (fun _ -> Console.In.ReadLine())
-      |> Seq.takeWhile (fun line -> line <> null)
-      |> Seq.cache
+    let rec processLine
+      (window: Point list)
+      (prevPoint: Point option)
+      (prevNewtonOut: Point option)
+      (prevLinearOut: Point option)
+      =
+      let line = Console.In.ReadLine()
 
-    inputLines |> Seq.iter (fun line -> printfn "< %s" line)
+      if line = null then
+        printfn "< EOF"
+        ()
+      else
+        match parsePoint line with
+        | Some pt ->
+          printPoint "<" "" pt
 
-    let points = inputLines |> Seq.choose parsePoint
+          let newWindow =
+            if List.length window < opts.NewtonN then
+              window @ [ pt ]
+            else
+              (List.tail window) @ [ pt ]
 
-    if opts.UseLinear then
-      let ptsList = Seq.toList points
+          let newLinearOut = processLinear opts pt prevPoint prevLinearOut
+          let newNewtonOut = processNewton opts newWindow prevNewtonOut
 
-      match ptsList with
-      | [] -> ()
-      | hd :: _ -> printfn "> linear: %g %g" hd.X hd.Y
+          processLine newWindow (Some pt) newNewtonOut newLinearOut
 
-      for pt in linearInterpolationSeq opts.Step points do
-        if pt.X <> (List.head ptsList).X then
-          printfn "> linear: %g %g" pt.X pt.Y
+        | None ->
+          printfn "ERROR"
+          processLine window prevPoint prevNewtonOut prevLinearOut
 
-    if opts.UseNewton then
-      for pt in newtonInterpolationSeq opts.Step opts.NewtonN points do
-        printfn "> newton: %g %g" pt.X pt.Y
-
+    processLine [] None None None
     0

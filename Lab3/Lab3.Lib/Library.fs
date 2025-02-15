@@ -33,16 +33,23 @@ module Lib =
     else
       p0.Y + ((x - p0.X) / (p1.X - p0.X)) * (p1.Y - p0.Y)
 
-  let linearInterpolationSeq (step: float) (points: seq<Point>) : seq<Point> =
-    let pts = Seq.toList points
-    let start = (List.head pts).X
-    let last = (List.last pts).X
+  let linearInterpolationSeq
+    (step: float)
+    (points: Point list)
+    (prevPoint: Point option)
+    : seq<Point> =
+    let start =
+      match prevPoint with
+      | Some pt -> pt.X + step
+      | None -> (List.head points).X
+
+    let last = (List.last points).X
 
     seq {
       let rec loop x =
         seq {
           if x <= last then
-            let (p0, p1) = findSegment pts x
+            let (p0, p1) = findSegment points x
             yield { X = x; Y = linearInterpolate p0 p1 x }
             yield! loop (x + step)
         }
@@ -77,10 +84,9 @@ module Lib =
     loop 0
 
 
-  let newtonInterpolationSeq (step: float) (windowSize: int) (points: seq<Point>) : seq<Point> =
-    let pts = Seq.toList points
-    let firstInput = List.head pts
-    let lastInput = List.last pts
+  let newtonInterpolationSeq (step: float) (windowSize: int) (points: Point list) : seq<Point> =
+    let firstInput = List.head points
+    let lastInput = List.last points
 
     let rec processWindow (lastOut: float) (window: list<Point>) : seq<Point> =
       if List.length window < windowSize then
@@ -116,6 +122,6 @@ module Lib =
 
     seq {
       yield firstInput
-      yield! processWindow firstInput.X pts
+      yield! processWindow firstInput.X points
       yield lastInput
     }

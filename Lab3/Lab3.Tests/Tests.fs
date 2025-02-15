@@ -50,14 +50,12 @@ module Tests =
   [<Fact>]
   let ``linearInterpolationSeq yields expected points`` () =
     let points =
-      seq {
-        yield { X = 0.0; Y = 0.0 }
-        yield { X = 1.0; Y = 1.0 }
-        yield { X = 2.0; Y = 2.0 }
-        yield { X = 3.0; Y = 3.0 }
-      }
+      [ { X = 0.0; Y = 0.0 }
+        { X = 1.0; Y = 1.0 }
+        { X = 2.0; Y = 2.0 }
+        { X = 3.0; Y = 3.0 } ]
 
-    let interpolated = linearInterpolationSeq 0.7 points |> Seq.toList
+    let interpolated = linearInterpolationSeq 0.7 points None |> Seq.toList
 
     let expected =
       [ { X = 0.0; Y = 0.0 }
@@ -108,16 +106,14 @@ module Tests =
   [<Fact>]
   let ``newtonInterpolationSeq yields expected values for linear data`` () =
     let points =
-      seq {
-        yield { X = 0.0; Y = 0.0 }
-        yield { X = 1.0; Y = 1.0 }
-        yield { X = 2.0; Y = 2.0 }
-        yield { X = 3.0; Y = 3.0 }
-        yield { X = 4.0; Y = 4.0 }
-        yield { X = 5.0; Y = 5.0 }
-        yield { X = 7.0; Y = 7.0 }
-        yield { X = 8.0; Y = 8.0 }
-      }
+      [ { X = 0.0; Y = 0.0 }
+        { X = 1.0; Y = 1.0 }
+        { X = 2.0; Y = 2.0 }
+        { X = 3.0; Y = 3.0 }
+        { X = 4.0; Y = 4.0 }
+        { X = 5.0; Y = 5.0 }
+        { X = 7.0; Y = 7.0 }
+        { X = 8.0; Y = 8.0 } ]
 
     let interpolated =
       newtonInterpolationSeq 0.5 4 points
