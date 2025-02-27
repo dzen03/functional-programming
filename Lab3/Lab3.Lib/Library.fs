@@ -84,7 +84,12 @@ module Lib =
     loop 0
 
 
-  let newtonInterpolationSeq (step: float) (windowSize: int) (points: Point list) (prevPoint: Point option) : seq<Point> =
+  let newtonInterpolationSeq
+    (step: float)
+    (windowSize: int)
+    (points: Point list)
+    (prevPoint: Point option)
+    : seq<Point> =
     let firstInput = List.head points
     let lastInput = List.last points
 
@@ -128,7 +133,9 @@ module Lib =
     seq {
       if prevPoint.IsNone then
         yield firstInput
+
       yield! processWindow lastOut points
+
       if lastOut + step < lastInput.X then
         yield lastInput
     }

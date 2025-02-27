@@ -64,7 +64,7 @@ let processLinear
           Some(res |> Seq.last)
         else
           prevLinearOut
-          
+
       | None ->
         printLinear point
         Some point
