@@ -84,7 +84,7 @@ module Lib =
     loop 0
 
 
-  let newtonInterpolationSeq (step: float) (windowSize: int) (points: Point list) : seq<Point> =
+  let newtonInterpolationSeq (step: float) (windowSize: int) (points: Point list) (prevPoint: Point option) : seq<Point> =
     let firstInput = List.head points
     let lastInput = List.last points
 
@@ -95,7 +95,7 @@ module Lib =
         let coeffs = newtonCoeffs window
         let left = (List.head window).X
         let right = (List.last window).X
-        let start = if lastOut < left then left else lastOut + step
+        let start = if lastOut + step < left then left else lastOut + step
 
         let rec yieldPoints x =
           seq {
@@ -120,8 +120,15 @@ module Lib =
           yield! processWindow newLast (List.tail window)
         }
 
+    let lastOut =
+      match prevPoint with
+      | Some pt -> pt.X
+      | None -> firstInput.X
+
     seq {
-      yield firstInput
-      yield! processWindow firstInput.X points
-      yield lastInput
+      if prevPoint.IsNone then
+        yield firstInput
+      yield! processWindow lastOut points
+      if lastOut + step < lastInput.X then
+        yield lastInput
     }

@@ -60,10 +60,14 @@ let processLinear
         |> Seq.filter (fun pt -> pt.X > prevPt.X)
         |> Seq.iter (fun pt -> printLinear pt)
 
-        (Some(res |> Seq.last))
+        if res |> Seq.length > 0 then
+          Some(res |> Seq.last)
+        else
+          prevLinearOut
+          
       | None ->
         printLinear point
-        (Some point)
+        Some point
 
     res
   else
@@ -75,7 +79,7 @@ let processNewton
   (prevNewtonOut: Point option)
   : (Point option) =
   if List.length window = opts.NewtonN && opts.UseNewton then
-    let res = newtonInterpolationSeq opts.Step opts.NewtonN window
+    let res = newtonInterpolationSeq opts.Step opts.NewtonN window prevNewtonOut
 
     match prevNewtonOut with
     | Some prevPt ->
@@ -84,7 +88,10 @@ let processNewton
       |> Seq.iter (fun pt -> printNewton pt)
     | None -> res |> Seq.iter (fun pt -> printNewton pt)
 
-    (Some(res |> Seq.last))
+    if res |> Seq.length > 0 then
+      Some(res |> Seq.last)
+    else
+      prevNewtonOut
   else
     prevNewtonOut
 

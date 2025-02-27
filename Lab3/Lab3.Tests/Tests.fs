@@ -116,7 +116,7 @@ module Tests =
         { X = 8.0; Y = 8.0 } ]
 
     let interpolated =
-      newtonInterpolationSeq 0.5 4 points
+      newtonInterpolationSeq 0.5 4 points None
       |> Seq.filter (fun pt -> pt.X < 3.0)
       |> Seq.toList
 
