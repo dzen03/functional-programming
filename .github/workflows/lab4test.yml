@@ -22,5 +22,7 @@ jobs:
         run: dotnet restore
       - name: Install tools
         run: dotnet tool restore
-      - name: Run fantomas
-        run: dotnet fantomas **/*.fs --check
+      - name: Run fantomas on player
+        run: dotnet fantomas *.fs --check
+      - name: Run fantomas on tests
+        run: dotnet fantomas ../tests/*.fs --check
