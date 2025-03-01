@@ -2,6 +2,6 @@
 
 Дзензелюк Илья, 335140
 
-[Код](./Lab4/F\#/player)
+[Код](./F%23/player)
 
 [Развернутая игра](https://tetris.hereismy.space/)
