@@ -1,0 +1,26 @@
+name: Lab4 tests
+
+on:
+  push:
+    paths:
+      - 'Lab4/**'
+      - '.github/workflows/lab4test.yml'
+  workflow_dispatch:
+
+jobs:
+  dotnet-test:
+    runs-on: [self-hosted, linux]
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./Lab4/F#
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: dotnet restore
+      - name: Install tools
+        run: dotnet tool restore
+      - name: Run fantomas
+        run: dotnet fantomas **/*.fs --check
